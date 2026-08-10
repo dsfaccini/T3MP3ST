@@ -27,6 +27,7 @@ describe('ts-grammars registry', () => {
       '.java': 'class A { void run(String u){} }\n',
       '.c': 'int fetch(char *url){ return 0; }\n',
       '.cpp': 'int fetch(char *url){ return 0; }\n',
+      '.rs': 'pub fn fetch(url: &str) -> bool { get(url) }\n',
     };
     for (const ext of supportedExts()) {
       const g = getGrammar(ext);

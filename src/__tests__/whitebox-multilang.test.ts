@@ -21,6 +21,7 @@ beforeAll(async () => {
   writeFileSync(join(repo, 'svc.go'), 'package m\nfunc Fetch(url string) error {\n\treturn http.Get(url)\n}\n');
   writeFileSync(join(repo, 'run.ts'), 'export function runCmd(cmd: string) {\n\treturn exec(cmd);\n}\n');
   writeFileSync(join(repo, 'p.py'), 'def load(path):\n    return open(path)\n');
+  writeFileSync(join(repo, 'boundary.rs'), 'pub fn hostCall(name: &str, mut args: Vec<u8>) -> bool {\n    resolve(name)\n}\n');
 });
 
 afterAll(() => {
@@ -35,6 +36,9 @@ describe('ingestRepoToSourceContext (production white-box entry) — multi-langu
     // real production path, not just via a direct createMultiLangIngestConfig call.
     expect(sourceContext).toContain('Fetch');
     expect(sourceContext).toContain('runCmd');
+    // Rust block — the sandbox-boundary language; without the .rs grammar this
+    // silently yields nothing and a Rust repo audits only its peripheral files.
+    expect(sourceContext).toContain('hostCall');
     // Python still ingested alongside.
     expect(sourceContext).toContain('load');
   });
@@ -52,6 +56,7 @@ describe('ingestRepoToSourceContext (production white-box entry) — multi-langu
       const sourceContext = runSpy.mock.calls[0][1] as string;
       expect(sourceContext).toContain('Fetch'); // Go reached the orchestrator
       expect(sourceContext).toContain('runCmd'); // TS reached the orchestrator
+      expect(sourceContext).toContain('hostCall'); // Rust reached the orchestrator
     } finally {
       runSpy.mockRestore();
     }

@@ -56,6 +56,14 @@ function paramName(partRaw: string, lang: string): string | null {
     return firstId(part);
   }
 
+  if (lang === 'rust') {
+    // name-first, colon-typed (`name: Type`). Drop the method receiver
+    // (`self` / `&self` / `&mut self`) and a leading `mut` binding modifier.
+    const p = part.replace(/^&\s*/, '').replace(/^mut\s+/, '').split(':')[0].trim();
+    if (!p || p === 'self') return null;
+    return firstId(p);
+  }
+
   // java / c / c++ / unknown: type-first → name is the last token; strip * & [].
   const p = part.split('=')[0].trim();
   const toks = p.split(/\s+/).filter(Boolean);

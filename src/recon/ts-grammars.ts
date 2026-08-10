@@ -19,7 +19,7 @@ const require = createRequire(import.meta.url);
 export interface GrammarEntry {
   language: Language;
   query: Query;
-  /** Language id, for param-splitting dialect (py/js/ts/go/java/c/cpp). */
+  /** Language id, for param-splitting dialect (py/js/ts/go/java/c/cpp/rust). */
   lang: string;
 }
 
@@ -127,6 +127,15 @@ const SPECS: Record<string, { wasm: string; lang: string; query: string }> = {
     wasm: 'tree-sitter-cpp', lang: 'cpp',
     query: `
       (function_definition declarator: (function_declarator declarator: (identifier) @name parameters: (parameter_list) @params)) @def
+    `,
+  },
+  '.rs': {
+    wasm: 'tree-sitter-rust', lang: 'rust',
+    query: `
+      (function_item name: (identifier) @name parameters: (parameters) @params) @def
+      (struct_item name: (type_identifier) @name) @def
+      (enum_item name: (type_identifier) @name) @def
+      (trait_item name: (type_identifier) @name) @def
     `,
   },
 };

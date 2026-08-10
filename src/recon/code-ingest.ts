@@ -39,6 +39,7 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, sep, extname } from 'path';
 import { parseFileMultiLang } from './ts-parse.js';
+import { supportedExts } from './ts-grammars.js';
 import {
   estimateTokens,
   type SourceFile,
@@ -870,7 +871,10 @@ export function createPythonIngestConfig(repoRoot: string): IngestConfig {
 export function createMultiLangIngestConfig(repoRoot: string): IngestConfig {
   return {
     repoRoot,
-    includeExts: ['.py', '.js', '.ts', '.tsx', '.go', '.java', '.c', '.cpp'],
+    // Derived from the grammar registry so the crawl list can't drift from the
+    // extractor's actual language support (a hardcoded copy previously omitted
+    // .rs, silently dropping Rust source from every white-box audit).
+    includeExts: supportedExts(),
     excludeGlobs: [...DEFAULT_EXCLUDES],
     maxFileBytes: 1_000_000,
     maxFiles: 50_000,
