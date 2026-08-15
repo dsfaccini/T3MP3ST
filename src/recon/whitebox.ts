@@ -263,6 +263,43 @@ export interface WhiteboxAnalysisOptions {
   maxRounds?: number;
 }
 
+function readProp(obj: object, key: string): unknown {
+  return Reflect.get(obj, key);
+}
+
+/**
+ * Pack orchestrator synthesis into operator-facing context.
+ * Hypotheses only — they stay unverified until a tool result backs them.
+ */
+export function formatDecompositionForOperators(decomposition: unknown): string {
+  if (!decomposition || typeof decomposition !== 'object') return '';
+  const finalSynthesis = readProp(decomposition, 'finalSynthesis');
+  if (!finalSynthesis || typeof finalSynthesis !== 'object') return '';
+  const findingsRaw = readProp(finalSynthesis, 'findings');
+  const model = readProp(finalSynthesis, 'attackSurfaceModel');
+  const lines: string[] = [
+    '### White-box decomposition (orchestrator synthesis — UNVERIFIED until a tool backs it)',
+  ];
+  if (typeof model === 'string' && model.trim()) {
+    lines.push(`Attack-surface model: ${model.trim()}`);
+  }
+  if (Array.isArray(findingsRaw)) {
+    for (const item of findingsRaw) {
+      if (!item || typeof item !== 'object') continue;
+      const title = readProp(item, 'title');
+      const description = readProp(item, 'description');
+      const type = readProp(item, 'type');
+      const severity = readProp(item, 'severity');
+      const label = typeof title === 'string' ? title : 'finding';
+      const kind = typeof type === 'string' ? type : 'observation';
+      const sev = typeof severity === 'string' ? severity : 'info';
+      const body = typeof description === 'string' ? description : '';
+      lines.push(`- [${sev}] (${kind}) ${label}${body ? `: ${body}` : ''}`);
+    }
+  }
+  return lines.length > 1 ? lines.join('\n') : '';
+}
+
 /** Result of a full white-box decomposition analysis run. */
 export interface WhiteboxAnalysisResult {
   /** Raw ingest stats (files/blocks + per-exposure counts). */

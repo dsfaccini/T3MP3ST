@@ -76,8 +76,9 @@ export {
   createStrictRoE,
   createReconTasks,
   createVulnScanTasks,
+  createTasksFromWorkOrders,
 } from './mission/index.js';
-export type { MissionEvents, TaskQueueEvents } from './mission/index.js';
+export type { MissionEvents, TaskQueueEvents, SeededWorkOrder } from './mission/index.js';
 
 // Target
 export {
@@ -95,8 +96,12 @@ export {
   createMisconfigFinding,
   SEVERITY_SCORES,
   cvssToSeverity,
+  gateLiveFinding,
 } from './evidence/index.js';
 export type { EvidenceVaultEvents } from './evidence/index.js';
+export { evaluateOracle, classifyFinding } from './evidence/oracles.js';
+export type { OracleClass, OracleVerdict } from './evidence/oracles.js';
+export { inspectActRequest, wrapUntrustedOutput, looksLikeHostileAct } from './opsec/untrusted-output.js';
 
 // Arsenal
 export { Arsenal, successResult, failResult, createToolContext, BUILTIN_TOOLS, EXTERNAL_TOOLS, isToolAvailable, runSubprocess } from './arsenal/index.js';
@@ -225,7 +230,7 @@ import { OperatorCell, OperatorAgent, ARCHETYPE_PROFILES, PHASE_ARCHETYPES, KILL
 import { PackBoard } from './pack/board.js';
 import { randomUUID } from 'node:crypto';
 import { createPrivateReportWorkspace, readPrivateToolReport } from './arsenal/report-workspace.js';
-import { MissionControl, TaskQueue } from './mission/index.js';
+import { MissionControl, TaskQueue, type SeededWorkOrder } from './mission/index.js';
 import { TargetEnvironment } from './target/index.js';
 import { EvidenceVault } from './evidence/index.js';
 import {
@@ -1247,6 +1252,7 @@ export class TempestCommand extends EventEmitter<CommandEvents> {
       : DEFAULT_AGENT_MAX_ITERATIONS;
     const agentLoop = new AgentLoop(this.llm, this.arsenal, {
       maxIterations,
+      minIterations: Math.max(1, Math.min(8, maxIterations - 1)),
       maxTokens: 50000,
       toolCategories: profile.toolCategories,
       tools: profile.defaultTools,
@@ -1279,6 +1285,14 @@ export class TempestCommand extends EventEmitter<CommandEvents> {
     for (const operator of this.cell.getAllOperators()) {
       operator.setWhiteboxSource(sourceContext);
     }
+  }
+
+  /**
+   * Install General work orders as the mission task source.
+   * Must be called before start() so the first tick seeds these instead of canned recon lists.
+   */
+  public setWorkOrders(orders: SeededWorkOrder[]): void {
+    this.mission.seedWorkOrders(orders);
   }
 
   /**

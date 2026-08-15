@@ -15,6 +15,11 @@ import type {
 } from '../types/index.js';
 import { gateLiveFinding } from './gate.js';
 
+export { gateLiveFinding } from './gate.js';
+export type { LiveGateResult, LiveProvenance } from './gate.js';
+export { evaluateOracle, classifyFinding } from './oracles.js';
+export type { OracleClass, OracleVerdict } from './oracles.js';
+
 // =============================================================================
 // CREDENTIAL REDACTION — secrets NEVER leave the process in an API/LLM output
 // =============================================================================

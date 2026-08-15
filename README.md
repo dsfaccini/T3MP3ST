@@ -26,7 +26,7 @@
 
 Point it at an authorized target and the kill chain runs itself: **recon → exploit → report**, from a browser War Room or the CLI, driven by the agent you're *already* signed into — Claude Code, Codex, Hermes, OpenCode, Oh My Pi — or a model you run **fully offline** (Ollama, LM Studio, vLLM). No new API keys, no cloud tenant, no second bill. Your agent is the brain; T3MP3ST is the war machine bolted around it. **Self-hosted storm. Keyless warfare.** ⚡
 
-And it won't ask you to take its word for it. On **XBOW's own 104-challenge suite it scores 90.1% pass@1** — above XBOW's self-reported 85% — alongside hint-free CTF solves and a **cold hunt on real, post-cutoff CVEs the model had never seen**. Every number in this README recomputes from committed data with one command (`npm run verify-claims`). Loud about the mission, honest about the build — the [status table](#what-ships-today) says exactly what's live, what's scaffolding, and what's still roadmap; full receipts in [Benchmarks](#benchmarks).
+And it won't ask you to take its word for it. On the 2024 **XBEN 104-challenge suite** it scores **90.1% pass@1** (re-derived, hint-free). XBOW later retired that suite as saturated — treat it as a lab receipt, not a live-bounty claim. Alongside it: hint-free CTF solves and a **cold hunt on real, post-cutoff CVEs the model had never seen**. Every number in this README recomputes from committed data with one command (`npm run verify-claims`). Loud about the mission, honest about the build — the [status table](#what-ships-today) says exactly what's live, what's scaffolding, and what's still roadmap; full receipts in [Benchmarks](#benchmarks).
 
 Three things set it apart:
 
@@ -228,7 +228,7 @@ Headline results. Each recomputes from the committed JSON with `npm run verify-c
 
 | Suite | Result | Context |
 |---|---|---|
-| **XBEN** — XBOW's 104-challenge suite, black-box | **pass@1 mean 90.1%** (Wilson-95 86.2–92.9), floor 91/104 · gpt-5.5 | XBOW self-reports 85% on the same suite; ours re-derives the graded verdict from committed artifacts (raw transcripts stripped for privacy) |
+| **XBEN** — 2024 XBOW 104-challenge suite, black-box | **pass@1 mean 90.1%** (Wilson-95 86.2–92.9), floor 91/104 · gpt-5.5 | Lab receipt on a suite XBOW later marked saturated. Re-derives the graded verdict from committed artifacts (raw transcripts stripped for privacy). Not a live-bounty or HackerOne comparison. |
 | **XBEN** — white-box (reported separately) | pass@1 98.7%, best-ball 104/104 · gpt-5.5 | never blended with the black-box number |
 | **Cybench** — 40-task academic bench, Opus 4.8, no hints | **23/40 (58%) hint-free, single-run pass@1** (`verify-claims`-enforced) | not the raw-score record (Anthropic: 76.5% pass@10); every flag graded against the committed oracle |
 | **Cybench model matrix** — identical 15-task committed subset, pass@1 | **Opus 4.7 vs 4.8**, with per-task source receipts and separate failure/abstention/infrastructure outcomes | [rebuild and inspect the model/harness matrix](docs/MODEL_MATRIX.md); historical system comparison, not an isolated model ranking |

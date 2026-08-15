@@ -40,6 +40,25 @@ export interface TaskQueueEvents {
   'queue:empty': void;
 }
 
+/**
+ * A General work order reduced to the fields the task queue needs.
+ * Kept here (not imported from general/) so mission does not take a module cycle.
+ */
+export interface SeededWorkOrder {
+  id: string;
+  title: string;
+  target: string;
+  assignedArchetype: OperatorArchetype;
+  hypothesis: string;
+  safeProbe: string;
+  expectedSignal: string;
+  falsifier: string;
+  retest: string;
+  toolHints: string[];
+  priority: number;
+  kind: string;
+}
+
 // =============================================================================
 // RULES OF ENGAGEMENT
 // =============================================================================
@@ -226,6 +245,7 @@ export class MissionControl extends EventEmitter<MissionEvents> {
   private missions: Map<string, Mission> = new Map();
   private taskQueue: TaskQueue;
   private activeMissionId: string | null = null;
+  private seededWorkOrders: SeededWorkOrder[] = [];
 
   constructor() {
     super();
@@ -300,9 +320,30 @@ export class MissionControl extends EventEmitter<MissionEvents> {
     );
     if (alreadyHasTasksForTarget) return;
 
+    if (this.seededWorkOrders.length > 0) {
+      const matching = this.seededWorkOrders.filter((order) =>
+        workOrderMatchesTarget(order, targetAddress)
+      );
+      const source = matching.length > 0 ? matching : this.seededWorkOrders;
+      this.taskQueue.addMany(createTasksFromWorkOrders(mission.id, targetAddress, source));
+      return;
+    }
+
     // Always start with recon tasks
     const reconTasks = createReconTasks(mission.id, targetAddress);
     this.taskQueue.addMany(reconTasks);
+  }
+
+  /**
+   * Prefer General work orders over canned recon/scan/exploit task lists.
+   * Call before start() so the first seed uses the plan the General actually wrote.
+   */
+  seedWorkOrders(orders: SeededWorkOrder[]): void {
+    this.seededWorkOrders = orders.slice();
+  }
+
+  hasSeededWorkOrders(): boolean {
+    return this.seededWorkOrders.length > 0;
   }
 
   /**
@@ -315,6 +356,10 @@ export class MissionControl extends EventEmitter<MissionEvents> {
 
     const phase = mission.currentPhase;
     let tasks: Task[] = [];
+
+    if (this.seededWorkOrders.length > 0) {
+      return;
+    }
 
     switch (phase) {
       case KillChainPhase.WEAPONIZE:
@@ -554,6 +599,54 @@ export class MissionControl extends EventEmitter<MissionEvents> {
 // =============================================================================
 // TASK FACTORIES
 // =============================================================================
+
+function workOrderMatchesTarget(order: SeededWorkOrder, targetAddress: string): boolean {
+  if (!order.target) return true;
+  const a = order.target.toLowerCase();
+  const b = targetAddress.toLowerCase();
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+function phaseForArchetype(archetype: OperatorArchetype): KillChainPhase {
+  switch (archetype) {
+    case 'recon': return KillChainPhase.RECON;
+    case 'scanner': return KillChainPhase.WEAPONIZE;
+    case 'exploiter': return KillChainPhase.EXPLOIT;
+    case 'infiltrator': return KillChainPhase.INSTALL;
+    case 'exfiltrator': return KillChainPhase.ACTIONS;
+    case 'ghost': return KillChainPhase.C2;
+    case 'coordinator': return KillChainPhase.C2;
+    case 'analyst': return KillChainPhase.ACTIONS;
+    default: return KillChainPhase.RECON;
+  }
+}
+
+export function createTasksFromWorkOrders(
+  missionId: string,
+  targetAddress: string,
+  orders: SeededWorkOrder[],
+): Task[] {
+  return orders.map((order) => ({
+    id: randomUUID(),
+    missionId,
+    name: order.title || `${order.kind} work order`,
+    description: [
+      `Work order ${order.id} (${order.kind}) against ${order.target || targetAddress}.`,
+      `Hypothesis: ${order.hypothesis}`,
+      `Safe probe: ${order.safeProbe}`,
+      `Expected signal: ${order.expectedSignal}`,
+      `Falsifier: ${order.falsifier}`,
+      `Retest: ${order.retest}`,
+      order.toolHints.length ? `Tool hints: ${order.toolHints.join(', ')}` : '',
+    ].filter(Boolean).join('\n'),
+    phase: phaseForArchetype(order.assignedArchetype),
+    operatorType: order.assignedArchetype,
+    status: 'pending',
+    priority: Math.max(1, Math.min(10, order.priority || 5)),
+    dependencies: [],
+    createdAt: Date.now(),
+  }));
+}
 
 export function createReconTasks(missionId: string, targetAddress: string): Task[] {
   const tasks: Task[] = [];

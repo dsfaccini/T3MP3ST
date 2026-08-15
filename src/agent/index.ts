@@ -12,6 +12,7 @@ import type { Arsenal } from '../arsenal/index.js';
 import {
   ToolError,
 } from '../types/index.js';
+import { inspectActRequest, wrapUntrustedOutput } from '../opsec/untrusted-output.js';
 import type {
   LLMMessage,
   LLMToolDefinition,
@@ -30,6 +31,12 @@ import type {
 export interface AgentLoopOptions {
   /** Max ReAct iterations before forcing a conclusion (default: 15) */
   maxIterations?: number;
+  /**
+   * Refuse a no-finding / give-up finish before this many iterations.
+   * Default 0 keeps unit tests that finish after one tool call.
+   * The live command path sets this so the War Room cannot quit on turn 0.
+   */
+  minIterations?: number;
   /** Max total tokens to spend (default: 50000) */
   maxTokens?: number;
   /** Tool categories to expose (default: all) */
@@ -129,6 +136,7 @@ export class AgentLoop extends EventEmitter<AgentEvents> {
     this.arsenal = arsenal;
     this.options = {
       maxIterations: options?.maxIterations ?? 15,
+      minIterations: options?.minIterations ?? 0,
       maxTokens: options?.maxTokens ?? 50000,
       toolCategories: options?.toolCategories ?? [],
       tools: options?.tools ?? [],
@@ -156,6 +164,8 @@ export class AgentLoop extends EventEmitter<AgentEvents> {
     // anti-stall: dedup identical tool calls + detect runs of no-new-findings (ported from the hunter)
     const seenCalls = new Map<string, string>();
     let noProgress = 0;
+    const failedByTool = new Map<string, number>();
+    let toolCallsExecuted = 0;
 
     // Get tool definitions from Arsenal (the operator's role toolkit: name allowlist wins,
     // then category filter, then all).
@@ -279,6 +289,15 @@ export class AgentLoop extends EventEmitter<AgentEvents> {
               }
             }
 
+            if (toolStep.toolResult) {
+              toolCallsExecuted += 1;
+              if (!toolStep.toolResult.success) {
+                failedByTool.set(toolCall.name, (failedByTool.get(toolCall.name) || 0) + 1);
+              } else {
+                failedByTool.set(toolCall.name, 0);
+              }
+            }
+
             // Build tool result content
             const resultContent = this.formatToolResult(toolStep.toolResult);
 
@@ -301,7 +320,38 @@ export class AgentLoop extends EventEmitter<AgentEvents> {
             });
             noProgress = 0;
           }
+
+          for (const [name, fails] of failedByTool) {
+            if (fails >= 3 && i < this.options.maxIterations - 1) {
+              messages.push({
+                role: 'user',
+                content: `[System: ${name} failed ${fails} times. You MUST switch tool or attack class. Repeating the same failed call is not progress.]`,
+              });
+              failedByTool.set(name, 0);
+              break;
+            }
+          }
         } else {
+          const remaining = this.options.maxIterations - i - 1;
+          const blockedZeroTools = toolCallsExecuted === 0 && remaining > 0;
+          const blockedMinFloor = i + 1 < this.options.minIterations && allFindings.length === 0 && remaining > 0;
+          if (blockedZeroTools || blockedMinFloor) {
+            const why = blockedZeroTools
+              ? 'You have not requested any tool yet. A prose finish with no tool output cannot produce a verified finding.'
+              : `HARD FLOOR: you may not finish with no findings before iteration ${this.options.minIterations}.`;
+            messages.push({
+              role: 'user',
+              content: `[System: ${why} Call a listed Arsenal tool now. ${remaining} iteration(s) remain. If the current class is stalling, pick a different one.]`,
+            });
+            steps.push({
+              iteration: i,
+              type: 'reasoning',
+              content: response.content,
+              timestamp: Date.now(),
+            });
+            continue;
+          }
+
           // LLM finished reasoning — this is the final answer.
           const finalStep: AgentStep = {
             iteration: i,
@@ -428,6 +478,23 @@ export class AgentLoop extends EventEmitter<AgentEvents> {
   ): Promise<AgentStep> {
     const source = iteration < 0 ? 'backend_seeded' : 'agent';
     this.emit('agent:tool_call', { name: toolCall.name, args: toolCall.arguments, source });
+
+    const act = inspectActRequest(toolCall.name, toolCall.arguments || {});
+    if (!act.allowed) {
+      const denied: ToolResult = {
+        success: false,
+        error: act.reason || 'ACT DENIED',
+      };
+      this.emit('agent:tool_result', { name: toolCall.name, result: denied, source });
+      return {
+        iteration,
+        type: 'tool_call',
+        toolName: toolCall.name,
+        toolArgs: toolCall.arguments,
+        toolResult: denied,
+        timestamp: Date.now(),
+      };
+    }
 
     let toolResult: ToolResult;
     try {
@@ -559,9 +626,9 @@ export class AgentLoop extends EventEmitter<AgentEvents> {
       parts.push(`1. Call tools via function calling — do NOT fabricate results`);
       parts.push(`2. Analyze each result before deciding the next action`);
       parts.push(`3. Report findings immediately as you discover them`);
-      parts.push(`4. When finished, END your final message with a single fenced \`\`\`json block:\n` +
+      parts.push(`4. To REQUEST tools, emit a fenced \`{"tool_calls":[…]}\` block (the harness runs them). To FINISH, write a short debrief AND end with a single fenced \`\`\`json block:\n` +
         `   {"findings":[{"title":"…","severity":"critical|high|medium|low|info","details":"… cite the tool output that evidences it …","cvss":0.0,"cve":["…"],"remediation":"…"}],"abstained":false}\n` +
-        `   This block is the ONLY finding channel the harness records — anything described only in prose is dropped. Emit [] findings + "abstained":true if you found nothing real.`);
+        `   This block is the ONLY finding channel the harness records — anything described only in prose is dropped. Emit [] findings + "abstained":true if you found nothing real. Do not finish with zero tool calls while iterations remain.`);
     }
 
     return parts.join('\n');
@@ -615,7 +682,7 @@ export class AgentLoop extends EventEmitter<AgentEvents> {
       }
     }
 
-    return parts.join('\n');
+    return wrapUntrustedOutput(parts.join('\n'));
   }
 
   /**

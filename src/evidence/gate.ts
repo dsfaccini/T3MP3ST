@@ -13,6 +13,7 @@
  */
 
 import type { Finding } from '../types/index.js';
+import { evaluateOracle } from './oracles.js';
 
 /** Evidence types that represent real machine/tool output (vs a human note). */
 const TOOL_EVIDENCE = new Set(['output', 'command', 'response', 'request', 'log', 'file']);
@@ -40,6 +41,18 @@ export function gateLiveFinding(f: Finding): LiveGateResult {
   }
   if ((f.severity === 'critical' || f.severity === 'high') && evidence.length === 0) {
     reasons.push(`${f.severity} severity asserted with zero evidence — severity must be backed by evidence`);
+  }
+
+  const proofPhase = f.phase === 'exploitation'
+    || f.phase === 'installation'
+    || f.phase === 'command_and_control'
+    || f.phase === 'actions_on_objectives';
+  if (toolEv.length > 0 && proofPhase) {
+    const evidenceText = toolEv.map((e) => String(e.content || '')).join('\n');
+    const oracle = evaluateOracle(String(f.title || ''), String(f.description || ''), evidenceText);
+    if (oracle.applied && !oracle.passed) {
+      reasons.push(oracle.reason);
+    }
   }
 
   const provenance: LiveProvenance = toolEv.length > 0 ? 'tool' : (evidence.length > 0 ? 'context' : 'none');

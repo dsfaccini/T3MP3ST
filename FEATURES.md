@@ -130,6 +130,7 @@
 - [x] Finding and credential recording
 - [x] Archetype-specific system prompts
 - [x] MITRE ATT&CK technique mapping
+- [x] Hunter gates in the live AgentLoop (zero-tool finish rejected, min-iter floor, 3-fail class switch)
 - [~] Autonomous decision making via LLM
 - [ ] Inter-operator coordination
 - [ ] Learning from past engagements
@@ -407,6 +408,7 @@ _The per-tool checklists below document the **retired** design (historical only)
 - [x] Create findings with severity
 - [x] CVSS score support
 - [x] Verification status tracking
+- [x] Class oracles (XSS execution / SQLi proof / SSRF canary / RCE uid / LFI file content) on the live gate
 - [x] Query by severity/target/operator
 - [x] Evidence attachment
 - [ ] Finding templates

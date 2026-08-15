@@ -15,6 +15,9 @@ A finding becomes tool-proven when all of these are true:
 - T3MP3ST executes that tool through the harness.
 - The returned output is captured as evidence.
 - The finding records the tool name or evidence reference that supports it.
+- If the finding is a known class (XSS, SQLi, SSRF, RCE, LFI), a class oracle
+  must also pass — reflection of a probe is not proof. Generic recon findings
+  still use the provenance check alone.
 
 Final prose from a model is useful analysis, but it is not the same thing as
 tool-backed evidence.

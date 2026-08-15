@@ -32,7 +32,7 @@ import { OPERATOR_SYSTEM_PROMPTS, PLINIAN_OPERATOR_DOCTRINE, THE_FIXER_SYSTEM_PR
 import { createTargetFromUrl, createTargetFromIP } from './target/index.js';
 import type { OperatorArchetype, LLMProvider } from './types/index.js';
 import { listOperatorPrompts, setOperatorOverride, resetOperatorOverride, type OperatorOverride } from './operators/index.js';
-import { ingestRepoToSourceContext, runWhiteboxAnalysis, resolveRepoSourceForAnalysis, RepoCloneError, RepoPathError } from './recon/whitebox.js';
+import { ingestRepoToSourceContext, runWhiteboxAnalysis, resolveRepoSourceForAnalysis, formatDecompositionForOperators, RepoCloneError, RepoPathError } from './recon/whitebox.js';
 import { initGrammars } from './recon/ts-grammars.js';
 import { redactCredential } from './evidence/index.js';
 
@@ -40,6 +40,22 @@ const execFileAsync = promisify(execFile);
 
 function isKnownLLMProvider(provider: string): provider is LLMProvider {
   return Object.prototype.hasOwnProperty.call(AVAILABLE_MODELS, provider);
+}
+
+function parseOperatorArchetype(value: string): OperatorArchetype {
+  switch (value) {
+    case 'recon':
+    case 'scanner':
+    case 'exploiter':
+    case 'infiltrator':
+    case 'exfiltrator':
+    case 'ghost':
+    case 'coordinator':
+    case 'analyst':
+      return value;
+    default:
+      return 'recon';
+  }
 }
 
 // =============================================================================
@@ -6278,6 +6294,8 @@ app.post('/api/mission/start', async (req: Request, res: Response): Promise<void
     // command via setWhiteboxSource BEFORE start(), so operators reason over the
     // real source instead of black-box probing. Absent = unchanged behavior.
     repoPath,
+    objective,
+    whiteboxDecompose,
   } = req.body;
 
   // Use the request-selected backend, or fall back to the server's configured default.
@@ -6368,13 +6386,30 @@ app.post('/api/mission/start', async (req: Request, res: Response): Promise<void
     // exists on disk, ingest + security-rank it and feed the packed source into
     // the command before it starts, so operators analyze real source you own
     // rather than probing a black box. Reads LOCAL disk only — no network target.
-    let whitebox: { includedUnits: number; droppedUnits: number; stats: unknown; source: 'local' | 'github' } | undefined;
+    let whitebox: { includedUnits: number; droppedUnits: number; stats: unknown; source: 'local' | 'github'; decomposed?: boolean } | undefined;
     if (repoSource) {
       const wb = ingestRepoToSourceContext(repoSource.repoPath);
+      let sourceContext = wb.sourceContext;
+      const shouldDecompose = whiteboxDecompose === true || (typeof objective === 'string' && objective.trim().length > 0);
+      if (shouldDecompose && sourceContext.trim()) {
+        try {
+          const analysis = await runWhiteboxAnalysis({
+            repoPath: repoSource.repoPath,
+            objective: typeof objective === 'string' && objective.trim() ? objective.trim() : String(name),
+          });
+          const packed = formatDecompositionForOperators(analysis.decomposition);
+          if (packed) sourceContext = `${packed}\n\n${sourceContext}`;
+          whitebox = { includedUnits: wb.includedUnits, droppedUnits: wb.droppedUnits, stats: wb.stats, source: repoSource.source, decomposed: true };
+        } catch (decompErr) {
+          console.warn('[T3MP3ST] white-box decompose skipped:', decompErr instanceof Error ? decompErr.message : decompErr);
+        }
+      }
       // Only feed a NON-empty source (0 ingestable units → don't overwrite the operators'
       // black-box view with an empty blob; the includedUnits:0 in the response signals it).
-      if (wb.sourceContext.trim()) cmd.setWhiteboxSource(wb.sourceContext);
-      whitebox = { includedUnits: wb.includedUnits, droppedUnits: wb.droppedUnits, stats: wb.stats, source: repoSource.source };
+      if (sourceContext.trim()) cmd.setWhiteboxSource(sourceContext);
+      if (!whitebox) {
+        whitebox = { includedUnits: wb.includedUnits, droppedUnits: wb.droppedUnits, stats: wb.stats, source: repoSource.source };
+      }
     }
 
     // Start the command loop (auto-creates mission, auto-dispatches tasks)
@@ -6870,10 +6905,44 @@ function resolveGeneralLLMConfig(provider: string | undefined, model: string | u
  * front door performs the SAME real bring-up — not a "mission launching" stub.
  */
 function bringUpMissionFromPlan(
-  execConfig: { missionName: string; targets: string[]; operators: string[] },
+  execConfig: {
+    missionName: string;
+    targets: string[];
+    operators: string[];
+    workOrders?: Array<{
+      id: string;
+      title: string;
+      target: string;
+      assignedArchetype: string;
+      hypothesis: string;
+      safeProbe: string;
+      expectedSignal: string;
+      falsifier: string;
+      retest: string;
+      toolHints: string[];
+      priority: number;
+      kind: string;
+    }>;
+  },
   generalConfig: { apiKey?: string; provider: any; model: string; baseUrl?: string },
 ): { spawnedOps: Array<{ id: string; callsign: string; archetype: string }>; status: any } {
   const cmd = createTempestCommandInstance(execConfig.missionName, generalConfig.apiKey, generalConfig.provider, generalConfig.model, generalConfig.baseUrl);
+  if (execConfig.workOrders && execConfig.workOrders.length > 0) {
+    cmd.setWorkOrders(execConfig.workOrders.map((order) => ({
+      id: order.id,
+      title: order.title,
+      target: order.target,
+      assignedArchetype: parseOperatorArchetype(order.assignedArchetype),
+      hypothesis: order.hypothesis,
+      safeProbe: order.safeProbe,
+      expectedSignal: order.expectedSignal,
+      falsifier: order.falsifier,
+      retest: order.retest,
+      toolHints: order.toolHints || [],
+      priority: order.priority,
+      kind: order.kind,
+    })));
+  }
   for (const target of execConfig.targets) {
     if (target.startsWith('http://') || target.startsWith('https://')) cmd.targetEnv.addTarget(createTargetFromUrl(target));
     else if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(target)) cmd.targetEnv.addTarget(createTargetFromIP(target));

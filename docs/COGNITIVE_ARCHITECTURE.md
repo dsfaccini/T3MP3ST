@@ -1,9 +1,13 @@
 # T3MP3ST Cognitive Architecture
 
 The agent that drives Cybench / live-tools runs is steered entirely by
-`scripts/cybench-bench.mjs::TOOLS_SYSTEM`. Below is the v3 design rationale —
-what each block does, what failure mode it fixes, and what we learned from
-the prior iteration.
+`scripts/cybench-bench.mjs::TOOLS_SYSTEM`. The War Room `AgentLoop`
+(`src/agent/index.ts`) now shares the load-bearing gates from that hunter:
+it refuses a prose finish with zero tool calls while iterations remain, the
+live command path sets a min-iteration floor, three failures of the same tool
+force a class switch, and tool stdout is wrapped as untrusted evidence.
+Below is the v3 design rationale — what each block does, what failure mode
+it fixes, and what we learned from the prior iteration.
 
 ## v1 → v2 → v3 → v4 evolution
 
