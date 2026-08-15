@@ -40,10 +40,10 @@ describe('arsenal count honesty (advertised = real registered surface)', () => {
     // README / verify-claims headline together — that is the point of the lock.
     expect(
       total,
-      `arsenal size drifted from the advertised 109 (adapters=${TOOL_ADAPTERS.length}, ` +
+      `arsenal size drifted from the advertised 111 (adapters=${TOOL_ADAPTERS.length}, ` +
         `built-ins=${BUILTIN_TOOLS.length}, externals=${EXTERNAL_TOOLS.length}) — ` +
         'update the README / verify-claims headline to match',
-    ).toBe(109);
+    ).toBe(111);
     expect(total).toBeGreaterThanOrEqual(80); // stays consistent with verify-claims' `>= 80` gate
   });
 

@@ -79,6 +79,8 @@ export {
   createTasksFromWorkOrders,
 } from './mission/index.js';
 export type { MissionEvents, TaskQueueEvents, SeededWorkOrder } from './mission/index.js';
+export { HypothesisTree } from './mission/hypothesis-tree.js';
+export type { HypothesisNode, HypothesisStatus } from './mission/hypothesis-tree.js';
 
 // Target
 export {
@@ -981,6 +983,12 @@ export class TempestCommand extends EventEmitter<CommandEvents> {
     // Failed required tasks are terminal, but they are not successful progress.
     // Stall instead of walking the phase bar forward with no backend/model work.
     if (allMissionTasks.length > 0 && pendingOrActive.length === 0 && inFlight.length === 0) {
+      if (this.mission.getTree().hasOpen()) {
+        for (const target of this.targetEnv.getAllTargets()) {
+          this.mission.enqueueFromTree(target.address);
+        }
+        return;
+      }
       const failedCurrentPhase = allMissionTasks.filter(
         t => t.phase === mission.currentPhase && t.status === 'failed'
       );
@@ -1076,11 +1084,19 @@ export class TempestCommand extends EventEmitter<CommandEvents> {
         // double-fire the completion hook.
         if (!this.activeDispatches.has(task.id)) return;
         this.clearDispatch(task.id);
+        this.mission.recordHypothesisOutcome(task, result);
+        if (result.success && result.findings?.length) {
+          for (const title of result.findings) this.mission.rememberFinding(title);
+        }
         if (result.success === false) {
           taskQueue.fail(task.id, result.error || result.output || 'task returned unsuccessful result');
         } else {
           taskQueue.complete(task.id, result);
           this.hooks.onTaskCompleted?.(task);
+        }
+        if (this.mission.getTree().hasOpen()) {
+          const addr = target.address;
+          this.mission.enqueueFromTree(addr);
         }
       }).catch((_error) => {
         if (!this.activeDispatches.has(task.id)) return;
@@ -1261,6 +1277,7 @@ export class TempestCommand extends EventEmitter<CommandEvents> {
     // [Phase-2] Give the operator the shared board ONLY when swarm coordination is on — so the
     // baseline (coordination off) keeps the solo-operator prompt with zero shared context.
     if (this.coordinationEnabled) operator.attachBoard(this.packBoard);
+    operator.attachHuntBlackboard(() => this.mission.blackboard());
 
     // If a white-box source was already set (repo ingested before this operator
     // spawned), hand it to the new operator so it also sees the source excerpt.

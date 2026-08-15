@@ -100,7 +100,7 @@ export const ARCHETYPE_PROFILES: Record<OperatorArchetype, ArchetypeProfile> = {
     description: 'Executes exploits and achieves initial access',
     mitreTactics: ['TA0001', 'TA0002'],
     primaryPhases: [KillChainPhase.DELIVER, KillChainPhase.EXPLOIT],
-    defaultTools: ['sqli_scan', 'xss_scan', 'ssti_test', 'lfi_test', 'open_redirect_test', 'nuclei_scan', 'ffuf_fuzz', 'dir_bruteforce', 'api_endpoint_discovery', 'http_methods_test', 'password_spray', 'hash_crack', 'base64_decode', 'url_encode', 'jwt_decode', 'http_request', 'curl_request', 'technology_detect', 'header_analysis'],
+    defaultTools: ['sqli_scan', 'xss_scan', 'ssti_test', 'lfi_test', 'open_redirect_test', 'nuclei_scan', 'ffuf_fuzz', 'dir_bruteforce', 'api_endpoint_discovery', 'http_methods_test', 'password_spray', 'hash_crack', 'base64_decode', 'url_encode', 'jwt_decode', 'http_request', 'curl_request', 'technology_detect', 'header_analysis', 'http_desync_probe', 'lab_exec'],
     toolCategories: ['vuln', 'web', 'auth', 'util'],
     capabilities: ['exploit_dev', 'payload_delivery', 'initial_access', 'code_execution'],
     techniques: ['T1190', 'T1133', 'T1078', 'T1059'],
@@ -277,6 +277,8 @@ export class OperatorAgent extends EventEmitter<OperatorEvents> {
   private agentLoop?: AgentLoop;
   /** Shared pack board (Phase-2). Attached only when swarm coordination is on; absent = solo baseline. */
   private board?: PackBoard;
+  /** Always-on hunt blackboard (tree + finding titles). Not gated on swarm coord. */
+  private huntBlackboard?: () => string;
   private cooldownTimer: NodeJS.Timeout | null = null;
   private findings: Finding[] = [];
   private credentials: Credential[] = [];
@@ -418,6 +420,10 @@ export class OperatorAgent extends EventEmitter<OperatorEvents> {
     this.board = board;
   }
 
+  attachHuntBlackboard(render: () => string): void {
+    this.huntBlackboard = render;
+  }
+
   /**
    * Execute a task with an optional target context
    */
@@ -449,8 +455,10 @@ export class OperatorAgent extends EventEmitter<OperatorEvents> {
         // [Phase-2] Register as live on the board and pull the shared situation report so this
         // operator sees teammates' verified leads/claims — it builds on them instead of running blind.
         this.board?.heartbeat(this.id, 'hunting', task.name);
-        const sharedContext = this.board?.situationReport(this.id);
-        result = await this.agentLoop.run(task, this.profile.systemPrompt, target, this.whiteboxSource, sharedContext);
+        const board = this.board?.situationReport(this.id) || '';
+        const tree = this.huntBlackboard?.() || '';
+        const sharedContext = [tree, board].filter((s) => s.trim().length > 0).join('\n\n');
+        result = await this.agentLoop.run(task, this.profile.systemPrompt, target, this.whiteboxSource, sharedContext || undefined);
       } finally {
         if (canForwardAgentEvents) {
           this.agentLoop.off('agent:thinking', onThinking);

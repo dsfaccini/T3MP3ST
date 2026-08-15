@@ -39,6 +39,8 @@ const dnsResolveCname = promisify(dns.resolveCname);
 
 import { CVE_DATABASE } from '../stubs/index.js';
 import type { CVEEntry } from '../stubs/index.js';
+import { httpDesyncHandler } from './http-desync.js';
+import { labExecHandler } from './lab-exec.js';
 
 // =============================================================================
 // PORT SCANNING UTILITY
@@ -3240,6 +3242,31 @@ ${issues.length ? `Issues:\n${issues.join('\n')}` : '✓ No obvious issues'}`,
           `All IPs:\n${ips.map(ip => `  ${ip}`).join('\n')}`,
       };
     },
+  },
+  {
+    name: 'http_desync_probe',
+    description: 'Send TE/CL HTTP/1.1 frame permutations and report parser differentials (smuggle candidates)',
+    category: 'exploit',
+    parameters: [
+      { name: 'target', type: 'string', description: 'Host or http URL (cleartext hop)', required: true },
+      { name: 'port', type: 'number', description: 'Port (default 80)', required: false, default: 80 },
+      { name: 'path', type: 'string', description: 'Request path', required: false, default: '/' },
+      { name: 'timeoutMs', type: 'number', description: 'Per-frame timeout', required: false, default: 2500 },
+    ],
+    handler: httpDesyncHandler,
+  },
+  {
+    name: 'lab_exec',
+    description: 'Run an allowlisted lab binary (python3/curl/openssl) as argv — no shell',
+    category: 'exploit',
+    riskTier: 'intrusive',
+    parameters: [
+      { name: 'target', type: 'string', description: 'Scoped target host this argv is about', required: true },
+      { name: 'argv', type: 'array', description: 'argv[0] is the binary; no shell interpolation', required: true, items: { type: 'string' } },
+      { name: 'cwd', type: 'string', description: 'Working directory', required: false },
+      { name: 'timeoutMs', type: 'number', description: 'Timeout ms (max 30000)', required: false, default: 15000 },
+    ],
+    handler: labExecHandler,
   },
 ];
 

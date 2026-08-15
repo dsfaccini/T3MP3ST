@@ -336,6 +336,8 @@ export interface Task {
   dependencies: string[];
   assignedTo?: string;
   result?: TaskResult;
+  /** External hypothesis-tree node this task is testing, when the hunt is tree-driven. */
+  hypothesisId?: string;
   createdAt: number;
   startedAt?: number;
   completedAt?: number;

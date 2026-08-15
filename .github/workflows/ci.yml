@@ -30,6 +30,8 @@ jobs:
       - run: npm run test:no-self-fitting
       # The provenance gate itself, in the compiled engine path (builds first).
       - run: npm run test:gate
+      # Pre-prod ingest (no packets, no LLM). Writes reports/ci-hunt.json.
+      - run: npm run ci:hunt
       # The operator doctrine / prompt-pack contract must hold.
       - run: npm run prompt:audit
       # Non-network smoke: core traps run deterministically; server/live tiers

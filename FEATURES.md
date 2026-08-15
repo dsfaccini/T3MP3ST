@@ -131,6 +131,8 @@
 - [x] Archetype-specific system prompts
 - [x] MITRE ATT&CK technique mapping
 - [x] Hunter gates in the live AgentLoop (zero-tool finish rejected, min-iter floor, 3-fail class switch)
+- [x] Hypothesis tree (difficulty-ordered take, 3-fail prune, confirm-spawns-child) outside the transcript
+- [x] Always-on hunt blackboard (tree + finding titles) injected into every operator
 - [~] Autonomous decision making via LLM
 - [ ] Inter-operator coordination
 - [ ] Learning from past engagements
@@ -243,6 +245,8 @@
 ### Built-in Tools
 - [x] `dns_lookup` - DNS resolution with multiple record types
 - [x] `port_scan` - Port scanning with service detection
+- [x] `http_desync_probe` - TE/CL HTTP/1.1 frame permutations + parser differential
+- [x] `lab_exec` - allowlisted argv runner (python3/curl/openssl), no shell, scope-checked
 - [x] `http_request` - Full HTTP client with headers/body
 - [x] `subdomain_enum` - Subdomain enumeration
 - [x] `dir_bruteforce` - Directory bruteforcing with wordlists

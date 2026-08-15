@@ -6,6 +6,10 @@ The agent that drives Cybench / live-tools runs is steered entirely by
 it refuses a prose finish with zero tool calls while iterations remain, the
 live command path sets a min-iteration floor, three failures of the same tool
 force a class switch, and tool stdout is wrapped as untrusted evidence.
+Hunt state lives in `HypothesisTree` (`src/mission/hypothesis-tree.ts`) — not
+the transcript — and is injected as an always-on blackboard. Mechanical
+search sits beside the model: `http_desync_probe` for TE/CL differentials
+and `lab_exec` for allowlisted argv PoCs.
 Below is the v3 design rationale — what each block does, what failure mode
 it fixes, and what we learned from the prior iteration.
 

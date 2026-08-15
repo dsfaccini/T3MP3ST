@@ -15,6 +15,8 @@ import {
   type OperatorArchetype,
 } from '../types/index.js';
 import { KILL_CHAIN_ORDER } from '../operators/index.js';
+import { HypothesisTree } from './hypothesis-tree.js';
+import { HuntStateStore } from './state-store.js';
 
 // =============================================================================
 // EVENTS
@@ -246,6 +248,8 @@ export class MissionControl extends EventEmitter<MissionEvents> {
   private taskQueue: TaskQueue;
   private activeMissionId: string | null = null;
   private seededWorkOrders: SeededWorkOrder[] = [];
+  private readonly tree = new HypothesisTree();
+  private readonly stateStore = new HuntStateStore(process.env.T3MP3ST_HUNT_STATE_PATH);
 
   constructor() {
     super();
@@ -320,12 +324,8 @@ export class MissionControl extends EventEmitter<MissionEvents> {
     );
     if (alreadyHasTasksForTarget) return;
 
-    if (this.seededWorkOrders.length > 0) {
-      const matching = this.seededWorkOrders.filter((order) =>
-        workOrderMatchesTarget(order, targetAddress)
-      );
-      const source = matching.length > 0 ? matching : this.seededWorkOrders;
-      this.taskQueue.addMany(createTasksFromWorkOrders(mission.id, targetAddress, source));
+    if (this.tree.size() > 0 || this.seededWorkOrders.length > 0) {
+      this.enqueueFromTree(targetAddress);
       return;
     }
 
@@ -340,10 +340,90 @@ export class MissionControl extends EventEmitter<MissionEvents> {
    */
   seedWorkOrders(orders: SeededWorkOrder[]): void {
     this.seededWorkOrders = orders.slice();
+    for (const order of orders) {
+      if (this.tree.get(order.id)) continue;
+      this.tree.add({
+        id: order.id,
+        title: order.title,
+        claim: order.hypothesis,
+        vulnClass: order.kind || 'general',
+        target: order.target,
+        workOrderId: order.id,
+        difficulty: order.kind === 'map_impact' ? 4 : 2,
+        priority: order.priority,
+        falsifier: order.falsifier,
+        expectedSignal: order.expectedSignal,
+      });
+    }
   }
 
   hasSeededWorkOrders(): boolean {
-    return this.seededWorkOrders.length > 0;
+    return this.seededWorkOrders.length > 0 || this.tree.size() > 0;
+  }
+
+  getTree(): HypothesisTree {
+    return this.tree;
+  }
+
+  blackboard(): string {
+    return this.stateStore.blackboard(this.tree);
+  }
+
+  rememberFinding(title: string): void {
+    this.stateStore.rememberFinding(title);
+    void this.stateStore.save(this.tree);
+  }
+
+  recordHypothesisOutcome(task: Task, result: TaskResult): void {
+    const id = task.hypothesisId;
+    if (!id) return;
+    const found = (result.findings || []).length > 0;
+    this.tree.recordOutcome(id, {
+      confirmed: result.success && found,
+      failed: !result.success || !found,
+      evidenceNote: found ? result.findings?.join('; ') : result.error,
+      child: result.success && found
+        ? { title: `Prove impact: ${task.name}`, claim: `prior node confirmed: ${result.findings?.[0]}` }
+        : undefined,
+    });
+    void this.stateStore.save(this.tree);
+  }
+
+  enqueueFromTree(targetAddress: string, limit = 2): Task[] {
+    const mission = this.getActiveMission();
+    if (!mission) return [];
+    const created: Task[] = [];
+    const taken = this.tree.takeOpen(
+      limit,
+      undefined,
+      (node) => workOrderMatchesTarget({ target: node.target }, targetAddress),
+    );
+    for (const node of taken) {
+      const order = this.seededWorkOrders.find((o) => o.id === node.workOrderId);
+      const [task] = createTasksFromWorkOrders(
+        mission.id,
+        node.target || targetAddress,
+        [order || {
+          id: node.id,
+          title: node.title,
+          target: node.target || targetAddress,
+          assignedArchetype: 'scanner',
+          hypothesis: node.claim,
+          safeProbe: node.expectedSignal,
+          expectedSignal: node.expectedSignal,
+          falsifier: node.falsifier,
+          retest: '',
+          toolHints: [],
+          priority: node.priority,
+          kind: node.vulnClass,
+        }],
+      );
+      task.hypothesisId = node.id;
+      node.taskId = task.id;
+      created.push(task);
+    }
+    if (created.length) this.taskQueue.addMany(created);
+    return created;
   }
 
   /**
@@ -357,7 +437,8 @@ export class MissionControl extends EventEmitter<MissionEvents> {
     const phase = mission.currentPhase;
     let tasks: Task[] = [];
 
-    if (this.seededWorkOrders.length > 0) {
+    if (this.tree.size() > 0 || this.seededWorkOrders.length > 0) {
+      this.enqueueFromTree(targetAddress);
       return;
     }
 
@@ -600,7 +681,7 @@ export class MissionControl extends EventEmitter<MissionEvents> {
 // TASK FACTORIES
 // =============================================================================
 
-function workOrderMatchesTarget(order: SeededWorkOrder, targetAddress: string): boolean {
+function workOrderMatchesTarget(order: { target: string }, targetAddress: string): boolean {
   if (!order.target) return true;
   const a = order.target.toLowerCase();
   const b = targetAddress.toLowerCase();

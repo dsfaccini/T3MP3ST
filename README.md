@@ -191,13 +191,16 @@ The framework is an 8-operator kill chain, and this table won't blow smoke about
 | Re-derivable measurement (`verify-claims`) | ✅ Stable | every headline recomputes from committed artifacts |
 | Recon engine | ✅ Stable | drives nmap / DNS / HTTP / fingerprinting; every finding traces to real tool output |
 | Mission engine + War Room + Op Admiral | ✅ Stable | keyless through a connected local agent |
-| Arsenal, MCP server, HTTP API | ✅ Stable | 36 built-in tools by default; 109 with the opt-in `T3MP3ST_FULL_ARSENAL` (+73 adapters, with dangerous/catalog-only drivers — metasploit, hydra, pacu, frida — behind narrow approved paths rather than generic execution) — both counts re-derive via `verify-claims`. `security_recon` over MCP |
+| Arsenal, MCP server, HTTP API | ✅ Stable | 38 built-in tools by default; 111 with the opt-in `T3MP3ST_FULL_ARSENAL` (+73 adapters, with dangerous/catalog-only drivers — metasploit, hydra, pacu, frida — behind narrow approved paths rather than generic execution) — both counts re-derive via `verify-claims`. `security_recon` over MCP |
 | Egress-scope containment | ✅ Stable (on by default) | once a mission target is set, built-in networked tools refuse off-scope public hosts — not the target/subdomains, not loopback/private (`SCOPE DENIED`) — a tightened default, not a bare tool runner |
 | Coordinated-disclosure pipeline | ✅ Stable | OSV novelty + live PoC + refuter panel + CVSS; drafts only, a human sends |
 | White-box source analysis | ⚠️ Experimental | Multi-language ingest via web-tree-sitter (Python/JS/TS/Go/Java/C/C++); Python retains its regex parser, while other languages fail open to no extracted blocks; multi-model decomposition costs more tokens, not fewer |
 | DeFi (Damn Vulnerable DeFi) | ⚠️ Experimental | reproduces known exploit classes; not novel discovery |
 | Exploiter / Infiltrator / Exfiltrator / Ghost | ⚠️ Experimental | run the real tool-backed ReAct loop (same engine as recon); unproven as a coordinated swarm — single-agent is the benchmarked path, live swarm exploitation still unreliable |
 | Advanced modules (cloud, persistence, swarm, cognition) | 🚧 Planned | interface-only in `src/stubs/` |
+| Hypothesis tree + blackboard | ✅ Stable | work orders become search nodes; 3-fail prunes a class; operators always see the tree, not just the transcript |
+| `http_desync_probe` / `lab_exec` | ✅ Stable | mechanical TE/CL differentials + allowlisted argv PoCs (no shell) |
+| CI / pre-prod hunt | ✅ Stable | `npm run ci:hunt` ingests an owned repo and writes a delta report; no packets; decompose opt-in |
 | Self-improvement loop | 🧪 Research | records lessons + proposals today; feeding them back into planning is roadmap |
 
 Full feature-by-feature breakdown: [FEATURES.md](FEATURES.md).

@@ -13,6 +13,7 @@
     "setup:api": "bash scripts/setup-api.sh",
     "doctor": "node scripts/doctor.mjs",
     "verify-claims": "node scripts/verify-claims.mjs",
+    "ci:hunt": "node scripts/ci-hunt.mjs",
     "bench:model-matrix": "node scripts/model-matrix.mjs",
     "verify:model-matrix": "node scripts/model-matrix.mjs --verify",
     "test:model-matrix": "node scripts/model-matrix.mjs --self-test && node scripts/test-model-matrix.mjs",
